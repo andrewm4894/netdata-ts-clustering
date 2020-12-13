@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from tslearn.clustering import TimeSeriesKMeans
 from netdata_pandas.data import get_data
+from am4894plots.plots import plot_lines_grid
 
 # Cell
 
@@ -92,4 +93,24 @@ class Clusterer:
         """
         self.df_cluster_centers = pd.DataFrame(self.model.cluster_centers_.reshape(self.model.cluster_centers_.shape[0],self.model.cluster_centers_.shape[1])).transpose()
         self.df_cluster_centers.index = self.df.index
+
+    def generate_cluster_centers_plot(self):
+        """
+        """
+        titles = [f'{x[0]} - n={x[2]}, qs={x[1]}' for x in list(zip(list(self.df_cluster_meta.index),list(self.df_cluster_meta.quality_score),list(self.df_cluster_meta.n)))]
+        self.fig_centers = plot_lines_grid(
+            self.df_cluster_centers[list(self.df_cluster_meta.index)], subplot_titles=titles, return_p=True, h_each=75, w=1000,
+            legend=False, yaxes_visible=False, xaxes_visible=False, show_p=False
+        )
+
+    def run_all(self):
+        """
+        """
+        self.get_data()
+        self.preprocess_data()
+        self.cluster_data()
+        self.generate_quality_scores()
+        self.generate_df_cluster_meta()
+        self.generate_df_cluster_centers()
+        self.generate_cluster_centers_plot()
 

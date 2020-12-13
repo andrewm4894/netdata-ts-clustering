@@ -11,7 +11,7 @@
 ## Quickstart
 
 ```python
-model = Clusterer(['london.my-netdata.io'], charts=['system.load'])
+model = Clusterer(['london.my-netdata.io'], charts=['system.load'], after=-60, before=0)
 model.get_data()
 model.df.head()
 ```

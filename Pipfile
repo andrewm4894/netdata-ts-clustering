@@ -9,6 +9,8 @@ jupyter = "==1.0.0"
 jupyterlab = "==2.2.9"
 netdata-pandas = "==0.0.32"
 tslearn = "==0.4.1"
+am4894plots = "==0.2.0"
+plotly = "==4.14.1"
 
 [dev-packages]
 twine = "==3.2.0"
