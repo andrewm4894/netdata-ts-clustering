@@ -8,6 +8,10 @@ netdata_ts_clustering: $(SRC)
 	nbdev_build_lib
 	touch netdata_ts_clustering
 
+build: $(SRC)
+	nbdev_build_lib
+	touch netdata_ts_clustering
+
 sync:
 	nbdev_update_lib
 

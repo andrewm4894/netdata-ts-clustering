@@ -7,9 +7,19 @@ name = "pypi"
 nbdev = "==1.1.5"
 jupyter = "==1.0.0"
 jupyterlab = "==2.2.9"
-netdata-ts-clustering = {editable = true, path = "."}
+netdata-pandas = "==0.0.32"
+tslearn = "==0.4.1"
 
 [dev-packages]
+twine = "==3.2.0"
 
 [requires]
 python_version = "3.8"
+
+[packages.netdata-ts-clustering]
+editable = true
+path = "."
+
+[packages.e1839a8]
+path = "."
+editable = true

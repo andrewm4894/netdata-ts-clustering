@@ -1,6 +1,6 @@
 {
   "netdata_ts_clustering": {
     "Overview": "/",
-    "module name here": "core.html"
+    "core": "core.html"
   }
 }
