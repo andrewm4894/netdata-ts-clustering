@@ -6,8 +6,11 @@ __all__ = ['Clusterer']
 
 import numpy as np
 import pandas as pd
-from tslearn.clustering import TimeSeriesKMeans
-from netdata_pandas.data import get_data
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from tslearn.clustering import TimeSeriesKMeans
+from netdata_pandas.data import get_data, get_chart_list
 from am4894plots.plots import plot_lines_grid
 
 # Cell
@@ -18,7 +21,8 @@ class Clusterer:
 
     def __init__(self,
                  hosts: list, charts: list, after: int, before: int, diff: bool = False, norm: bool = True,
-                 smooth_n: int = 5, smooth_func: str = 'mean', n_clusters: int = 10, min_n: int = 4):
+                 smooth_n: int = 5, smooth_func: str = 'mean', n_clusters: int = 10, min_n: int = 3,
+                 max_n: int = 100, min_qs: float = 0.5):
         self.hosts = hosts
         self.charts = charts
         self.after = after
@@ -29,12 +33,20 @@ class Clusterer:
         self.smooth_func = smooth_func
         self.n_clusters = n_clusters
         self.min_n = min_n
+        self.max_n = max_n
+        self.min_qs = min_qs
         self.cluster_quality_dict = {}
 
     def get_data(self):
         """
         """
         self.df = get_data(self.hosts, self.charts, after=self.after, before=self.before, user=None, pwd=None)
+        # remove duplicate columns that we might get from get_data()
+        self.df = self.df.loc[:,~self.df.columns.duplicated()]
+        # drop any empty columns
+        self.df = self.df.dropna(axis=1, how='all')
+        # forward fill and backward fill to try remove any N/A values
+        self.df = self.df.ffill().bfill()
 
     def preprocess_data(self):
         """
@@ -68,40 +80,36 @@ class Clusterer:
         self.df_cluster = pd.DataFrame(list(zip(self.df.columns, self.model.labels_)), columns=['metric', 'cluster'])
         self.cluster_metrics_dict = self.df_cluster.groupby(['cluster'])['metric'].apply(lambda x: [x for x in x]).to_dict()
         self.cluster_len_dict = self.df_cluster['cluster'].value_counts().to_dict()
-        self.clusters_all = [cluster for cluster in self.cluster_len_dict]
-        self.clusters_dropped = [cluster for cluster in self.cluster_len_dict if self.cluster_len_dict[cluster]<self.min_n]
-        self.clusters_final = [cluster for cluster in self.cluster_len_dict if self.cluster_len_dict[cluster]>=self.min_n]
 
     def generate_quality_scores(self):
         """
         """
-        for cluster_number in self.clusters_all:
-            self.x_corr = self.df[self.cluster_metrics_dict[cluster_number]].corr().abs().values
+        for cluster in self.model.labels_:
+            self.x_corr = self.df[self.cluster_metrics_dict[cluster]].corr().abs().values
             self.x_corr_mean = round(self.x_corr[np.triu_indices(self.x_corr.shape[0],1)].mean(),2)
-            self.cluster_quality_dict[cluster_number] = self.x_corr_mean
+            self.cluster_quality_dict[cluster] = self.x_corr_mean
 
     def generate_df_cluster_meta(self):
         """
         """
         self.df_cluster_meta = pd.DataFrame.from_dict(self.cluster_len_dict, orient='index', columns=['n'])
         self.df_cluster_meta.index.names = ['cluster']
-        self.df_cluster_meta['quality_score'] = self.df_cluster_meta.index.map(self.cluster_quality_dict)
+        self.df_cluster_meta['quality_score'] = self.df_cluster_meta.index.map(self.cluster_quality_dict).fillna(0)
         self.df_cluster_meta = self.df_cluster_meta.sort_values('quality_score', ascending=False)
+        self.df_cluster_meta['valid'] = np.where(self.df_cluster_meta['n'] < self.min_n, 0, 1)
+        self.df_cluster_meta['valid'] = np.where(self.df_cluster_meta['n'] > self.max_n, 0, self.df_cluster_meta['valid'])
+        self.df_cluster_meta['valid'] = np.where(self.df_cluster_meta['quality_score'] < self.min_qs, 0, self.df_cluster_meta['valid'])
 
     def generate_df_cluster_centers(self):
         """
         """
-        self.df_cluster_centers = pd.DataFrame(self.model.cluster_centers_.reshape(self.model.cluster_centers_.shape[0],self.model.cluster_centers_.shape[1])).transpose()
+        self.df_cluster_centers = pd.DataFrame(
+            data = self.model.cluster_centers_.reshape(
+                self.model.cluster_centers_.shape[0],
+                self.model.cluster_centers_.shape[1]
+                )
+        ).transpose()
         self.df_cluster_centers.index = self.df.index
-
-    def generate_cluster_centers_plot(self):
-        """
-        """
-        titles = [f'{x[0]} - n={x[2]}, qs={x[1]}' for x in list(zip(list(self.df_cluster_meta.index),list(self.df_cluster_meta.quality_score),list(self.df_cluster_meta.n)))]
-        self.fig_centers = plot_lines_grid(
-            self.df_cluster_centers[list(self.df_cluster_meta.index)], subplot_titles=titles, return_p=True, h_each=75, w=1000,
-            legend=False, yaxes_visible=False, xaxes_visible=False, show_p=False
-        )
 
     def run_all(self):
         """
@@ -112,5 +120,3 @@ class Clusterer:
         self.generate_quality_scores()
         self.generate_df_cluster_meta()
         self.generate_df_cluster_centers()
-        self.generate_cluster_centers_plot()
-
